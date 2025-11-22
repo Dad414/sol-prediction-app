@@ -1,78 +1,101 @@
-import os
+import sqlite3
+import bcrypt
 import streamlit as st
-from streamlit_oauth import OAuth2Component
-import dotenv
+from pathlib import Path
 
-# Load environment variables
-dotenv.load_dotenv()
+DB_PATH = Path("users.db")
 
-# Constants
-CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.environ.get("REDIRECT_URI", "http://localhost:8501")
-AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
-REVOKE_TOKEN_URL = "https://oauth2.googleapis.com/revoke"
-SCOPE = "openid email profile"
+def init_db():
+    """Initialize the SQLite database for users."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        '''CREATE TABLE IF NOT EXISTS users
+           (email TEXT PRIMARY KEY, password_hash BLOB)'''
+    )
+    conn.commit()
+    conn.close()
 
+def create_user(email, password):
+    """Create a new user with a hashed password."""
+    password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, password_hash))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+def verify_user(email, password):
+    """Verify user credentials."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT password_hash FROM users WHERE email = ?", (email,))
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        stored_hash = result[0]
+        return bcrypt.checkpw(password.encode('utf-8'), stored_hash)
+    return False
 
 def check_authentication():
     """
-    Handles Google OAuth authentication.
+    Handles manual authentication (Sign In / Sign Up).
     Returns the user's email if authenticated, None otherwise.
     """
+    # Initialize DB on first run
+    if not DB_PATH.exists():
+        init_db()
+
     if "email" not in st.session_state:
         st.session_state.email = None
 
     if st.session_state.email:
         return st.session_state.email
 
-    # If not authenticated, show login button
-    st.header("Sign In")
-    st.caption("Please sign in with your Google account to access the dashboard.")
-
-    if not CLIENT_ID or not CLIENT_SECRET:
-        st.error("Missing Google OAuth credentials. Please configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
-        return None
-
-    oauth2 = OAuth2Component(
-        CLIENT_ID, CLIENT_SECRET, AUTHORIZATION_URL, TOKEN_URL, TOKEN_URL, REVOKE_TOKEN_URL
-    )
-
-    result = oauth2.authorize_button(
-        name="Continue with Google",
-        icon="https://www.google.com.tw/favicon.ico",
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-        key="google_auth",
-        extras_params={"prompt": "consent", "access_type": "offline"},
-    )
-
-    if result:
-        # Decode the ID token to get user info
-        # Note: In a production app, you should verify the signature of the JWT.
-        # streamlit-oauth returns the token response.
-        try:
-            # Simple decoding for demonstration. 
-            # Ideally use google-auth library to verify token.
-            import jwt
-            id_token = result.get("token", {}).get("id_token")
-            if id_token:
-                decoded = jwt.decode(id_token, options={"verify_signature": False})
-                email = decoded.get("email")
-                st.session_state.email = email
-                st.session_state.token = result.get("token")
-                st.rerun()
-        except Exception as e:
-            st.error(f"Authentication failed: {e}")
+    st.header("Welcome")
     
-    return None
+    tab1, tab2 = st.tabs(["Sign In", "Sign Up"])
 
+    with tab1:
+        with st.form("login_form"):
+            email = st.text_input("Email", key="login_email")
+            password = st.text_input("Password", type="password", key="login_password")
+            submit = st.form_submit_button("Sign In")
+            
+            if submit:
+                if verify_user(email, password):
+                    st.session_state.email = email
+                    st.success("Logged in successfully!")
+                    st.rerun()
+                else:
+                    st.error("Invalid email or password")
+
+    with tab2:
+        with st.form("signup_form"):
+            new_email = st.text_input("Email", key="signup_email")
+            new_password = st.text_input("Password", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirm Password", type="password", key="signup_confirm")
+            submit_signup = st.form_submit_button("Sign Up")
+            
+            if submit_signup:
+                if new_password != confirm_password:
+                    st.error("Passwords do not match")
+                elif len(new_password) < 6:
+                    st.error("Password must be at least 6 characters")
+                else:
+                    if create_user(new_email, new_password):
+                        st.success("Account created! You can now sign in.")
+                    else:
+                        st.error("Email already registered")
+
+    return None
 
 def logout():
     """Logs the user out."""
-    if "email" in st.session_state:
-        del st.session_state.email
-    if "token" in st.session_state:
-        del st.session_state.token
+    st.session_state.email = None
     st.rerun()
