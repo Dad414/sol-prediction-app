@@ -19,6 +19,7 @@ import pandas as pd
 import requests
 
 BINANCE_BASE_URL = "https://api.binance.com"
+BINANCE_US_BASE_URL = "https://api.binance.us"
 KLINES_ENDPOINT = "/api/v3/klines"
 SYMBOL = "SOLUSDT"
 INTERVAL = "30m"
@@ -53,8 +54,19 @@ def _klines_request(start_ms: int, end_ms: Optional[int] = None) -> List[List[fl
     if end_ms is not None:
         params["endTime"] = end_ms
 
-    response = requests.get(f"{BINANCE_BASE_URL}{KLINES_ENDPOINT}", params=params, timeout=10)
-    response.raise_for_status()
+    url = f"{BINANCE_BASE_URL}{KLINES_ENDPOINT}"
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        if err.response.status_code == 451:
+            logger.warning("Got 451 from Binance.com, trying Binance.us...")
+            url = f"{BINANCE_US_BASE_URL}{KLINES_ENDPOINT}"
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+        else:
+            raise
+
     data = response.json()
     if not isinstance(data, list):
         msg = f"Unexpected response payload: {data}"
