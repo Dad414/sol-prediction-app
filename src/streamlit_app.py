@@ -21,6 +21,7 @@ sys.path.append(str(PROJECT_ROOT))
 from data.binance_fetch import update_history
 from feature_engineering import compute_features
 from signal_generation import generate_signal
+from src.auth import check_authentication, logout
 
 DATA_PATH = Path("data/raw/solusdt_30m.csv")
 MODEL_PATH = Path("models/sol_trend_random_forest.pkl")
@@ -264,6 +265,16 @@ def main() -> None:
         layout="wide",
         page_icon="📈",
     )
+    
+    # Authentication Check
+    user_email = check_authentication()
+    if not user_email:
+        st.stop()
+
+    st.sidebar.success(f"Logged in as: {user_email}")
+    if st.sidebar.button("Logout"):
+        logout()
+
     st.title("SOL/USDT 30-minute Trend Signal")
     st.caption("Model-driven guidance for the next 30-minute window using Binance data.")
 
