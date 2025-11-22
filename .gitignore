@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Local Data (keep raw data if needed for demo, but usually ignore large datasets)
+# data/raw/
+# data/processed/
+# Keeping data for now as it seems required for the app to run immediately
+
+# Models (keep model for easy deployment if < 100MB)
+# models/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
