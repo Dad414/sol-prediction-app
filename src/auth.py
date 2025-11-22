@@ -95,6 +95,17 @@ def check_authentication():
 
     return None
 
+def get_users():
+    """Returns a list of all registered user emails."""
+    if not DB_PATH.exists():
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT email FROM users")
+    users = [row[0] for row in c.fetchall()]
+    conn.close()
+    return users
+
 def logout():
     """Logs the user out."""
     st.session_state.email = None
