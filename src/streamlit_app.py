@@ -456,12 +456,19 @@ def main() -> None:
             
         st.divider()
         st.markdown("### 👥 User Management")
-        with st.expander("View Registered Users"):
-            users = get_users()
-            if users:
-                st.write(users)
-            else:
-                st.info("No users found.")
+        
+        # Admin-only view
+        ADMIN_EMAIL = "dadisworking414@gmail.com"
+        
+        if user_email == ADMIN_EMAIL:
+            with st.expander("View Registered Users (Admin Only)"):
+                users = get_users()
+                if users:
+                    st.table(pd.DataFrame(users, columns=["Registered Emails"]))
+                else:
+                    st.info("No users found.")
+        else:
+            st.info("User management is restricted to administrators.")
 
 
 if __name__ == "__main__":
