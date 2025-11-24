@@ -62,18 +62,20 @@ def _load_model(model_path: Path) -> Dict[str, Any]:
         model = xgb.XGBClassifier()
         model.load_model(model_path)
         
-        # Attach classes_ to model for compatibility
-        model.classes_ = np.array(metadata["classes"])
-        
         return {
             "model": model,
             "features": metadata["features"],
-            "timestamp": metadata["timestamp"]
+            "timestamp": metadata["timestamp"],
+            "classes": metadata["classes"]
         }
         
     data = pd.read_pickle(model_path)
     if not isinstance(data, dict) or "model" not in data or "features" not in data:
         raise ValueError("Model artifact is malformed.")
+    
+    if "classes" not in data and hasattr(data["model"], "classes_"):
+        data["classes"] = data["model"].classes_
+        
     return data
 
 
@@ -167,7 +169,7 @@ def generate_signal(
 
     X = row[feature_names].values.reshape(1, -1)
     probabilities = model.predict_proba(X)[0]
-    classes = model.classes_
+    classes = artifact["classes"]
     prob_map = {cls: float(prob) for cls, prob in zip(classes, probabilities)}
     direction = classes[int(np.argmax(probabilities))]
     probability = prob_map[direction]

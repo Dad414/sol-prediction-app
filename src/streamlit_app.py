@@ -75,16 +75,18 @@ def load_artifact(path: Path):
         model = xgb.XGBClassifier()
         model.load_model(path)
         
-        # Attach classes_ to model for compatibility
-        model.classes_ = np.array(metadata["classes"])
-        
         return {
             "model": model,
             "features": metadata["features"],
-            "timestamp": metadata["timestamp"]
+            "timestamp": metadata["timestamp"],
+            "classes": metadata["classes"]
         }
 
-    return pd.read_pickle(path)
+    data = pd.read_pickle(path)
+    # Ensure classes are available for RF models too
+    if "classes" not in data and hasattr(data["model"], "classes_"):
+        data["classes"] = data["model"].classes_
+    return data
 
 
 def inject_custom_css():
@@ -164,7 +166,7 @@ def build_history_table(feature_store: pd.DataFrame, artifact) -> pd.DataFrame:
     probs = model.predict_proba(X)
     preds = model.predict(X)
 
-    prob_df = pd.DataFrame(probs, columns=[f"prob_{cls}" for cls in model.classes_])
+    prob_df = pd.DataFrame(probs, columns=[f"prob_{cls}" for cls in artifact["classes"]])
     history = pd.concat(
         [
             feature_store[["open_time", "close", "atr_14", "atr_pct", "rsi_14"]],
