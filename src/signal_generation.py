@@ -43,9 +43,34 @@ class SignalResult:
         }
 
 
+import xgboost as xgb
+import pickle
+
 def _load_model(model_path: Path) -> Dict[str, Any]:
     if not model_path.exists():
         raise FileNotFoundError(f"Model file not found: {model_path}")
+    
+    if model_path.suffix == ".json":
+        # Load XGBoost model
+        metadata_path = model_path.with_suffix(".metadata.pkl")
+        if not metadata_path.exists():
+             raise FileNotFoundError(f"Model metadata not found: {metadata_path}")
+        
+        with open(metadata_path, "rb") as f:
+            metadata = pickle.load(f)
+            
+        model = xgb.XGBClassifier()
+        model.load_model(model_path)
+        
+        # Attach classes_ to model for compatibility
+        model.classes_ = np.array(metadata["classes"])
+        
+        return {
+            "model": model,
+            "features": metadata["features"],
+            "timestamp": metadata["timestamp"]
+        }
+        
     data = pd.read_pickle(model_path)
     if not isinstance(data, dict) or "model" not in data or "features" not in data:
         raise ValueError("Model artifact is malformed.")

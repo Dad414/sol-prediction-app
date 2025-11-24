@@ -66,8 +66,16 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     data["log_return_1"] = np.log(data["close"] / data["close"].shift(1))
 
     # Lag Features
-    for lag in (1, 2, 3):
+    for lag in (1, 2, 3, 6, 12):
         data[f"close_return_1_lag_{lag}"] = data["close_return_1"].shift(lag)
+
+    # Volatility (Rolling Std Dev)
+    for window in (20, 50):
+        data[f"volatility_{window}"] = data["close_return_1"].rolling(window=window).std()
+
+    # Rate of Change (ROC)
+    for period in (6, 12, 24):
+        data[f"roc_{period}"] = data["close"].pct_change(period)
 
     # EMA
     for span in (5, 10, 20, 40):
@@ -76,6 +84,8 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # RSI
     data["rsi_14"] = _rsi(data["close"], period=14)
+    data["rsi_6"] = _rsi(data["close"], period=6)
+    data["rsi_24"] = _rsi(data["close"], period=24)
 
     # ATR
     data["atr_14"] = _atr(data, period=14)

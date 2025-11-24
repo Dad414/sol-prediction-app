@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import sys
 import time
+import pickle
 from pathlib import Path
 from typing import Optional
+
+import xgboost as xgb
 
 import pandas as pd
 import numpy as np
@@ -25,8 +28,8 @@ from signal_generation import generate_signal
 from src.auth import check_authentication, logout, get_users
 
 DATA_PATH = Path("data/raw/solusdt_30m.csv")
-MODEL_PATH = Path("models/sol_trend_random_forest.pkl")
-METRICS_PATH = Path("reports/model_metrics.json")
+MODEL_PATH = Path("models/sol_trend_xgb.json")
+METRICS_PATH = Path("reports/model_metrics_xgb.json")
 
 
 @st.cache_data(show_spinner=False)
@@ -57,8 +60,30 @@ def load_metrics(path: Path) -> Optional[dict]:
 def load_artifact(path: Path):
     if not path.exists():
         raise FileNotFoundError(
-            "Trained model artifact not found. Please run `python src/train.py` first."
+            "Trained model artifact not found. Please run `python src/train_xgb.py` first."
         )
+    
+    if path.suffix == ".json":
+        # Load XGBoost model
+        metadata_path = path.with_suffix(".metadata.pkl")
+        if not metadata_path.exists():
+             raise FileNotFoundError(f"Model metadata not found: {metadata_path}")
+        
+        with open(metadata_path, "rb") as f:
+            metadata = pickle.load(f)
+            
+        model = xgb.XGBClassifier()
+        model.load_model(path)
+        
+        # Attach classes_ to model for compatibility
+        model.classes_ = np.array(metadata["classes"])
+        
+        return {
+            "model": model,
+            "features": metadata["features"],
+            "timestamp": metadata["timestamp"]
+        }
+
     return pd.read_pickle(path)
 
 
